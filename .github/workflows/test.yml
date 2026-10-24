@@ -27,3 +27,17 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nginx python3-cryptography
       - run: mkdir -p dist && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags='-s -w' -o dist/webproxy-host_linux_amd64 .
       - run: /usr/bin/python3 tools/integration.py
+      - name: Verify published launcher
+        run: |
+          test_dir=$(mktemp -d)
+          launcher_pid=""
+          trap 'if [ -n "$launcher_pid" ]; then kill "$launcher_pid" 2>/dev/null || true; fi; rm -rf "$test_dir"' EXIT
+          ADMIN_PASSWORD=launcher-test-password-only PUBLIC_URL=http://localhost:19444 HOST=127.0.0.1 SERVER_PORT=19444 DATA_DIR="$test_dir" sh start.sh >"$test_dir/output.log" 2>&1 &
+          launcher_pid=$!
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:19444/healthz >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then cat "$test_dir/output.log"; exit 1; fi
+          echo 'PASS: pinned release downloaded, checksum verified, launcher HTTP endpoint healthy'
