@@ -26,8 +26,8 @@ import (
 const coreVersion = "3.5.14"
 
 var coreHashes = map[string]string{
-	"amd64": "b10f86c6851f5c422a49d98deea55e8ef4aea7879605e59c1d4aa43c8f4c70ce",
-	"arm64": "d2e3ca6a3f407aecb190c4a73db74ec581d56b5dd6ab469cb0e1d0f2c3d31c57",
+	"amd64": "71c1454f79cf755edea0985500629daba553002f9863be754e8e38a418822773",
+	"arm64": "21795430c4165cf964405459714d08eea319edaa5c9027beac4de373c356d84d",
 }
 
 type Core struct {
@@ -103,7 +103,7 @@ func (c *Core) binary() (string, error) {
 		if runtime.GOARCH == "arm64" {
 			arch = "aarch64"
 		}
-		endpoint := fmt.Sprintf("https://github.com/telemt/telemt/releases/download/%s/telemt-%s-linux-gnu.tar.gz", coreVersion, arch)
+		endpoint := fmt.Sprintf("https://github.com/telemt/telemt/releases/download/%s/telemt-%s-linux-musl.tar.gz", coreVersion, arch)
 		client := &http.Client{Timeout: 150 * time.Second}
 		r, e := client.Get(endpoint)
 		if e != nil {
