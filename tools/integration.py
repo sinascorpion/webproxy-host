@@ -9,7 +9,7 @@ app=None
 nginx=False
 try:
  cert=root/"cert.pem";key=root/"key.pem"
- subprocess.run(["openssl","req","-x509","-newkey","rsa:2048","-nodes","-days","1","-subj","/CN=example.com","-addext","subjectAltName=DNS:example.com","-keyout",str(key),"-out",str(cert)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ subprocess.run(["openssl","req","-x509","-newkey","rsa:2048","-nodes","-days","1","-subj","/CN=example.com","-addext","subjectAltName=DNS:example.com,DNS:example.org","-keyout",str(key),"-out",str(cert)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
  env={**os.environ,"ADMIN_PASSWORD":"integration-test-password-only","ADMIN_UID":"integration-control-0123456789","PUBLIC_URL":"https://example.com","HOST":"127.0.0.1","SERVER_PORT":"19380","CORE_PORT":"19381","CORE_API_PORT":"19382","DATA_DIR":str(root/"data")}
  logfile=(root/"app.log").open("w")
  app=subprocess.Popen([str(binary)],env=env,stdout=logfile,stderr=logfile)
@@ -46,26 +46,55 @@ try:
  original=probe.ssl.create_default_context
  def trusted_context(*args,**kwargs):return original(cafile=str(cert))
  probe.ssl.create_default_context=trusted_context
- os.environ["MTP_SECRET"]=secret
- sys.argv=["probe","--host","example.com","--connect-ip","127.0.0.1","--connect-port","19443","--telegram"]
- probe.main()
+ def verify(host, value):
+  os.environ["MTP_SECRET"]=value
+  sys.argv=["probe","--host",host,"--connect-ip","127.0.0.1","--connect-port","19443","--telegram"]
+  probe.main()
+ verify("example.com",secret)
+ profiles=[{"domain":"example.com","secret":secret,"tag":""},{"domain":"example.org","secret":"34"*16,"tag":""},{"domain":"example.com","secret":"56"*16,"tag":""}]
+ assert req(base+"deploy",{"profiles":profiles},cookie,csrf)[0]==202
+ for _ in range(60):
+  state=json.loads(req(base+"state",cookie=cookie)[2])
+  if state["job"]!="deploying":break
+  time.sleep(.5)
+ assert state["job"]=="deployed" and state["running"],state["job"]
+ for profile in profiles:verify(profile["domain"],profile["secret"])
+ print("PASS: multiple domains, multiple Secrets and redeploy preserving the first Secret")
+ assert req(base+"deploy",{"profiles":[{"domain":"does-not-exist.invalid","secret":secret}]},cookie,csrf)[0]==202
+ for _ in range(30):
+  state=json.loads(req(base+"state",cookie=cookie)[2])
+  if state["job"]!="deploying":break
+  time.sleep(.5)
+ assert state["job"].startswith("Deployment failed:") and state["running"] and len(state["profiles"])==3
+ verify("example.com",secret)
+ print("PASS: failed DNS deployment preserves the active proxy and Secrets")
+ rss=[]
+ children=pathlib.Path(f"/proc/{app.pid}/task/{app.pid}/children").read_text().split()
+ for pid in [str(app.pid)]+children:
+  try:
+   status=pathlib.Path(f"/proc/{pid}/status").read_text().splitlines()
+   rss.append((status[0],next(line for line in status if line.startswith("VmRSS:"))))
+  except (OSError,StopIteration):pass
+ print("Observed process RSS:",rss)
  code,_,body=req(base+"stop",{},cookie,csrf);assert code==202
  for _ in range(20):
   state=json.loads(req(base+"state",cookie=cookie)[2])
   if state["job"]=="disabled":break
   time.sleep(.5)
- assert not state["running"] and len(state["profiles"])==1
+ assert not state["running"] and len(state["profiles"])==3
  assert json.loads((root/"data/state.json").read_text())["enabled"] is False
- print("PASS: admin login, async deploy, retained-secret links, disable and durable disabled state")
- rss=[]
- for item in pathlib.Path("/proc").iterdir():
-  if not item.name.isdigit():continue
+ app.terminate();app.wait(timeout=15)
+ app=subprocess.Popen([str(binary)],env=env,stdout=logfile,stderr=logfile)
+ for _ in range(100):
   try:
-   status=(item/"status").read_text()
-   if "webproxy-host" in status.splitlines()[0] or "telemt" in status.splitlines()[0]:
-    rss.append(next((line for line in status.splitlines() if line.startswith("VmRSS:")),""))
-  except (OSError,StopIteration):pass
- print("Observed process RSS:",rss)
+   if req("/healthz")[0]==200:break
+  except OSError:pass
+  time.sleep(.1)
+ code,headers,body=req(base+"login",{"password":env["ADMIN_PASSWORD"]});assert code==200
+ cookie=headers["Set-Cookie"].split(";",1)[0]
+ state=json.loads(req(base+"state",cookie=cookie)[2]);assert not state["running"] and len(state["profiles"])==3
+ print("PASS: admin login, async deploy, disable and durable disabled state after restart")
+
 except BaseException:
  if (root/"app.log").exists():print((root/"app.log").read_text())
  raise

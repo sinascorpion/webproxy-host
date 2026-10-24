@@ -158,15 +158,23 @@ func (c *Core) binary() (string, error) {
 		if header.Size > 100<<20 {
 			return "", errors.New("Invalid core archive.")
 		}
-		b, e := io.ReadAll(io.LimitReader(tr, 100<<20))
+		out, e := os.CreateTemp(dir, ".core-")
 		if e != nil {
 			return "", e
 		}
-		path := filepath.Join(dir, "telemt.new")
-		if e = atomicWrite(path, b); e != nil {
-			return "", e
+		path := out.Name()
+		defer os.Remove(path)
+		if e = out.Chmod(0700); e == nil {
+			_, e = io.CopyN(out, tr, header.Size)
 		}
-		if e = os.Chmod(path, 0700); e != nil {
+		if e == nil {
+			e = out.Sync()
+		}
+		closeErr := out.Close()
+		if e == nil {
+			e = closeErr
+		}
+		if e != nil {
 			return "", e
 		}
 		final := filepath.Join(dir, "telemt")

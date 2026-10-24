@@ -24,7 +24,7 @@ The launcher downloads a checksum-pinned release binary, avoiding compilation
 on a small host. With Go 1.24+ available, you can alternatively build from source:
 
 ```sh
-go build -trimpath -ldflags='-s -w' -o /tmp/webproxy-host . && /tmp/webproxy-host
+go build -buildvcs=false -trimpath -ldflags='-s -w' -o /tmp/webproxy-host . && /tmp/webproxy-host
 ```
 
 Set these variables in your host's **Environment** panel:
