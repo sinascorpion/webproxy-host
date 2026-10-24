@@ -6,8 +6,8 @@ cd "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 : "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the host Environment panel}"
 : "${PUBLIC_URL:?Set PUBLIC_URL to the assigned public HTTPS origin}"
 case "$(uname -m)" in
-  x86_64|amd64) arch=amd64; expected=7ad673c9e553be5ac129cf88ab913842315934d959e2561112bb8d1f3897aafc ;;
-  aarch64|arm64) arch=arm64; expected=6c5a30b8f68d8f26a89b9e62e30374b7cba97323021a584c5a35556733dad8e4 ;;
+  x86_64|amd64) arch=amd64; expected=7f9d6c84e4fcc7c61f5ee6ec56440c9aaa975224ada48e431c47e1e61d097722 ;;
+  aarch64|arm64) arch=arm64; expected=5a3534f5cca080924f776aba03a297553aa76503a48cee5e477f13e1d5567456 ;;
   *) echo "Unsupported architecture; Linux amd64/arm64 is required." >&2; exit 1 ;;
 esac
 [ "$(uname -s)" = Linux ] || { echo "Linux is required." >&2; exit 1; }

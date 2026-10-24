@@ -69,8 +69,11 @@ try:
  verify("example.com",secret)
  print("PASS: failed DNS deployment preserves the active proxy and Secrets")
  rss=[]
- children=pathlib.Path(f"/proc/{app.pid}/task/{app.pid}/children").read_text().split()
- for pid in [str(app.pid)]+children:
+ children=set()
+ for task in pathlib.Path(f"/proc/{app.pid}/task").iterdir():
+  try:children.update((task/"children").read_text().split())
+  except OSError:pass
+ for pid in [str(app.pid)]+sorted(children):
   try:
    status=pathlib.Path(f"/proc/{pid}/status").read_text().splitlines()
    rss.append((status[0],next(line for line in status if line.startswith("VmRSS:"))))
