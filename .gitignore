@@ -1,0 +1,9 @@
+/data/
+/dist/
+/webproxy-host
+*.exe
+.env
+*.log
+
+__pycache__/
+*.pyc
